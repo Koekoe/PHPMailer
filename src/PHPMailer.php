@@ -69,6 +69,14 @@ class PHPMailer
     public $ErrorInfo = '';
 
     /**
+     * Failed recipients of the latest send.
+     * Contains  [ ['to' =>'ex@ample.com', 'error' => 'message'], ... ]
+     *
+     * @var array
+     */
+    protected $failedRecipients = [];
+    
+    /**
      * The From email address for the message.
      *
      * @var string
@@ -620,7 +628,7 @@ class PHPMailer
      * @var int
      */
     protected $error_count = 0;
-
+  
     /**
      * The S/MIME certificate file path.
      *
@@ -1721,7 +1729,7 @@ class PHPMailer
      */
     protected function smtpSend($header, $body)
     {
-        $bad_rcpt = [];
+        $this->failedRecipients = [];
         if (!$this->smtpConnect($this->SMTPOptions)) {
             throw new Exception($this->lang('smtp_connect_failed'), self::STOP_CRITICAL);
         }
@@ -1742,7 +1750,7 @@ class PHPMailer
             foreach ($togroup as $to) {
                 if (!$this->smtp->recipient($to[0])) {
                     $error = $this->smtp->getError();
-                    $bad_rcpt[] = ['to' => $to[0], 'error' => $error['detail']];
+                    $this->failedRecipients[] = ['to' => $to[0], 'error' => $error['detail']];
                     $isSent = false;
                 } else {
                     $isSent = true;
@@ -1753,7 +1761,7 @@ class PHPMailer
         }
 
         // Only send the DATA command if we have viable recipients
-        if ((count($this->all_recipients) > count($bad_rcpt)) and !$this->smtp->data($header . $body)) {
+        if ((count($this->all_recipients) > count($this->failedRecipients)) and !$this->smtp->data($header . $body)) {
             throw new Exception($this->lang('data_not_accepted'), self::STOP_CRITICAL);
         }
 
@@ -1780,9 +1788,9 @@ class PHPMailer
         }
 
         //Create error message for any bad addresses
-        if (count($bad_rcpt) > 0) {
+        if (count($this->failedRecipients) > 0) {
             $errstr = '';
-            foreach ($bad_rcpt as $bad) {
+            foreach ($this->failedRecipients as $bad) {
                 $errstr .= $bad['to'] . ': ' . $bad['error'];
             }
             throw new Exception(
